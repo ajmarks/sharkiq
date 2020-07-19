@@ -1,5 +1,6 @@
 """Shark IQ Wrapper"""
 
+import aiohttp
 import enum
 import requests
 from collections import abc
@@ -75,21 +76,15 @@ class SharkIqVacuum:
     def serial_number(self) -> str:
         return self._dsn
 
+    def get_property_endpoint(self, property_name) -> str:
+        """Get the API endpoint for a given property"""
+        return f'{DEVICE_URL:s}/apiv1/dsns/{self._dsn:s}/properties/{property_name:s}/datapoints.json'
+
     def get_property_value(self, property_name: PropertyName) -> str:
         """Get the value of a property from the properties dictionary"""
         if isinstance(property_name, enum.Enum):
             property_name = property_name.value
         return self.property_values[property_name]
-
-    def _post_property(self, property_name: PropertyName, value: PropertyValue) -> requests.Response:
-        """Send data to the device via the Ayla API"""
-        if isinstance(property_name, enum.Enum):
-            property_name = property_name.value
-
-        end_point = f'{DEVICE_URL:s}/apiv1/dsns/{self._dsn:s}/properties/{property_name:s}/datapoints.json'
-        data = {'datapoint': {'value': value}}
-        r = self.sapi.post(end_point, json=data)
-        return r
 
     def set_property_value(self, property_name: PropertyName, value: PropertyValue):
         """Update a property"""
@@ -98,8 +93,23 @@ class SharkIqVacuum:
         if isinstance(value, enum.Enum):
             value = value.value
 
-        resp = self._post_property(f'SET_{property_name:s}', value)
+        end_point = self.get_property_endpoint(property_name)
+        data = {'datapoint': {'value': value}}
+        resp = self.sapi.post(end_point, json=data)
         self.properties_full[property_name].update(resp.json())
+
+    async def set_property_value_async(self, property_name: PropertyName, value: PropertyValue):
+        """Update a property async"""
+        if isinstance(property_name, enum.Enum):
+            property_name = property_name.value
+        if isinstance(value, enum.Enum):
+            value = value.value
+
+        end_point = self.get_property_endpoint(property_name)
+        data = {'datapoint': {'value': value}}
+        resp = await self.sapi.post_async(end_point, json=data)
+        self.properties_full[property_name].update(await resp.json())
+        resp.close()
 
     @property
     def update_url(self) -> str:
@@ -118,6 +128,7 @@ class SharkIqVacuum:
         self._do_update(property_list, properties)
 
     async def update_async(self, property_list: Optional[Iterable[str]] = None):
+        """Update the known device state async"""
         if property_list is not None:
             params = {'names[]': property_list}
         else:

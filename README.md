@@ -6,7 +6,6 @@ Python API for Shark IQ robot vacuums
 ```python
 from sharkiq import get_ayla_api, SharkIqVacuum
 
-
 USERNAME = 'me@email.com'
 PASSWORD = '$7r0nkP@s$w0rD'
 

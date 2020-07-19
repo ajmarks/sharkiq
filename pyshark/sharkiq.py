@@ -33,6 +33,7 @@ class OperatingModes(enum.IntEnum):
 
 @enum.unique
 class Properties(enum.Enum):
+    BATTERY_CAPACITY = 'Battery_Capacity'
     FIND_DEVICE = 'Find_Device'
     OPERATING_MODE = 'Operating_Mode'
     POWER_MODE = 'Power_Mode'
@@ -101,9 +102,7 @@ class SharkIqVacuum:
         if isinstance(property_name, enum.Enum):
             property_name = property_name.value
 
-        end_point = '{}/apiv1/dsns/{}/properties/{}/datapoints'.format(
-            DEVICE_URL, self._dsn, property_name
-        )
+        end_point = f'{DEVICE_URL:s}/apiv1/dsns/{self._dsn:s}/properties/{property_name:s}/datapoints'
         data = {'datapoint': {'value': value}}
         r = self.sapi.post(end_point, json=data)
         return r
@@ -115,8 +114,13 @@ class SharkIqVacuum:
         if isinstance(value, enum.Enum):
             value = value.value
 
-        resp = self._post_property('SET_{:s}'.format(property_name), value)
+        resp = self._post_property(f'SET_{property_name:s}', value)
         self._properties_full[property_name].update(resp.json())
+
+    @property
+    def update_url(self) -> str:
+        """API endpoint to fetch updated device information"""
+        return f'{DEVICE_URL}/apiv1/dsns/{self.serial_number}/properties.json'
 
     def update(self, property_list: Optional[Iterable] = None):
         """Update the known device state"""
@@ -125,9 +129,7 @@ class SharkIqVacuum:
         else:
             params = None
 
-        resp = self.sapi.get(
-            '{}/apiv1/dsns/{}/properties.json'.format(DEVICE_URL, self.serial_number), params
-        )
+        resp = self.sapi.get(self.update_url, params)
         properties = resp.json()
         property_names = {p['property']['name'] for p in properties}
         settable_properties = {_clean_property_name(p) for p in property_names if p[:3].upper() == 'SET'}

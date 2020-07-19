@@ -1,8 +1,6 @@
 """Shark IQ Wrapper"""
 
-import aiohttp
 import enum
-import requests
 from collections import abc
 from typing import Dict, Iterable, List, Optional, Set, Union
 from .ayla_api import AylaApi
@@ -51,8 +49,8 @@ def _clean_property_name(raw_property_name: str) -> str:
 class SharkIqVacuum:
     """Shark IQ vacuum entity"""
 
-    def __init__(self, sapi: AylaApi, device_dct: Dict):
-        self.sapi = sapi
+    def __init__(self, ayla_api: AylaApi, device_dct: Dict):
+        self.ayla_api = ayla_api
         self._dsn = device_dct['dsn']
         self._key = device_dct['key']
         self._model_number = device_dct['oem_model']  # type: str
@@ -93,9 +91,9 @@ class SharkIqVacuum:
         if isinstance(value, enum.Enum):
             value = value.value
 
-        end_point = self.get_property_endpoint(property_name)
+        end_point = self.get_property_endpoint(f'SET_{property_name}')
         data = {'datapoint': {'value': value}}
-        resp = self.sapi.post(end_point, json=data)
+        resp = self.ayla_api.post(end_point, json=data)
         self.properties_full[property_name].update(resp.json())
 
     async def set_property_value_async(self, property_name: PropertyName, value: PropertyValue):
@@ -105,10 +103,11 @@ class SharkIqVacuum:
         if isinstance(value, enum.Enum):
             value = value.value
 
-        end_point = self.get_property_endpoint(property_name)
+        end_point = self.get_property_endpoint(f'SET_{property_name}')
         data = {'datapoint': {'value': value}}
-        resp = await self.sapi.post_async(end_point, json=data)
-        self.properties_full[property_name].update(await resp.json())
+        resp = await self.ayla_api.post_async(end_point, json=data)
+        resp_data = await resp.json()
+        self.properties_full[property_name].update(resp_data)
         resp.close()
 
     @property
@@ -123,7 +122,7 @@ class SharkIqVacuum:
         else:
             params = None
 
-        resp = self.sapi.get(self.update_url, params)
+        resp = self.ayla_api.get(self.update_url, params)
         properties = resp.json()
         self._do_update(property_list, properties)
 
@@ -133,7 +132,7 @@ class SharkIqVacuum:
             params = {'names[]': property_list}
         else:
             params = None
-        resp = await self.sapi.get_async(self.update_url, params)
+        resp = await self.ayla_api.get_async(self.update_url, params)
         properties = await resp.json()
         resp.close()
         self._do_update(property_list, properties)
@@ -172,6 +171,22 @@ class SharkIqVacuum:
 
     def find_device(self):
         self.set_property_value(Properties.FIND_DEVICE, 1)
+
+    async def start_async(self):
+        await self.set_property_value_async(Properties.OPERATING_MODE, OperatingModes.START)
+
+    async def stop_async(self):
+        await self.set_property_value_async(Properties.OPERATING_MODE, OperatingModes.STOP)
+
+    async def pause_async(self):
+        await self.set_property_value_async(Properties.OPERATING_MODE, OperatingModes.STOP)
+
+    async def return_to_base_async(self):
+        await self.set_property_value_async(Properties.OPERATING_MODE, OperatingModes.RETURN)
+
+    async def find_device_async(self):
+        await self.set_property_value_async(Properties.FIND_DEVICE, 1)
+
 
 
 class SharkPropertiesView(abc.Mapping):

@@ -4,7 +4,7 @@ Python API for Shark IQ robot
 
 ## Usage
 ```python
-from pyshark.sharkiq import get_ayla_api, SharkIqVacuum
+from sharkiq import get_ayla_api, SharkIqVacuum
 
 
 USERNAME = 'me@email.com'

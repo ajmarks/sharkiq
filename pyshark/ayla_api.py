@@ -2,9 +2,19 @@
 
 import aiohttp
 import requests
+from datetime import datetime
 from functools import partial
-from typing import Dict, List
+from typing import Callable, Dict, List, Optional
 from .const import DEVICE_URL, LOGIN_URL
+
+_session = None
+
+
+async def _get_session():
+    global _session
+    if _session is None:
+        _session = aiohttp.ClientSession()
+    return _session
 
 
 class AylaApi:
@@ -13,10 +23,10 @@ class AylaApi:
     def __init__(self, email: str, password: str, app_id: str, app_secret: str):
         self._email = email
         self._password = password
-        self._access_token = None
-        self._refresh_token = None
-        self._auth_expiration = None
-        self._is_authed = False
+        self._access_token = None  # type: Optional[str]
+        self._refresh_token = None  # type: Optional[str]
+        self._auth_expiration = None # type: Optional[datetime]
+        self._is_authed = False  # type: bool
         self._app_id = app_id
         self._app_secret = app_secret
 
@@ -37,21 +47,28 @@ class AylaApi:
 
     def auth(self):
         login_data = self._login_data
-        r = requests.post(f"{LOGIN_URL:s}/users/sign_in.json", json=login_data)
-        self._set_credentials(r.json())
+        resp = requests.post(f"{LOGIN_URL:s}/users/sign_in.json", json=login_data)
+        self._set_credentials(resp.json())
 
     def refresh_auth(self):
         refresh_data = {"user": {"refresh_token": self._refresh_token}}
-        r = requests.post(f"{LOGIN_URL:s}/users/refresh_token.json", json=refresh_data)
-        self._set_credentials(r.json())
+        resp = requests.post(f"{LOGIN_URL:s}/users/refresh_token.json", json=refresh_data)
+        self._set_credentials(resp.json())
+
+    async def auth_async(self):
+        session = await _get_session()
+        login_data = self._login_data
+        async with session.post(f"{LOGIN_URL:s}/users/sign_in.json", json=login_data) as resp:
+            self._set_credentials(await resp.json())
+
+    async def refresh_auth_async(self):
+        session = await _get_session()
+        refresh_data = {"user": {"refresh_token": self._refresh_token}}
+        async with session.post(f"{LOGIN_URL:s}/users/refresh_token.json", json=refresh_data) as resp:
+            self._set_credentials(await resp.json())
 
     def list_devices(self) -> List[Dict]:
         r = self.get(f"{DEVICE_URL:s}/apiv1/devices.json")
-        devices = r.json()
-        return [d["device"] for d in devices]
-
-    async def async_list_devices(self) -> List[Dict]:
-        r = self.async_get(f"{DEVICE_URL:s}/apiv1/devices.json")
         devices = r.json()
         return [d["device"] for d in devices]
 
@@ -59,11 +76,37 @@ class AylaApi:
     def auth_header(self) -> Dict[str, str]:
         if self._access_token is None:
             raise RuntimeError('Auth Error')
-        return {"Authorization": f"auth_token {self._access_token: s}"}
+        return {"Authorization": f"auth_token {self._access_token:s}"}
 
-    def __getattr__(self, name):
-        if name[:6] == "async_":
-            return partial(getattr(aiohttp, name[6:]), headers=self.auth_header)
-        else:
-            return partial(getattr(requests, name), headers=self.auth_header)
+    def http(self, url: str, method: Callable[..., requests.Response], **kwargs) -> requests.Response:
+        return method(url, headers=self.auth_header, **kwargs)
 
+    def get(self, url: str, params=None, **kwargs) -> requests.Response:
+        return self.http(url, requests.get, params=params, **kwargs)
+
+    def post(self, url: str, data=None, json=None, **kwargs) -> requests.Response:
+        return self.http(url, requests.post, data=data, json=json, **kwargs)
+
+    def put(self,  url, data=None, **kwargs) -> requests.Response:
+        return self.http(url, requests.put, data=data, **kwargs)
+
+    async def http_async(self, url: str, http_method: str, **kwargs) -> aiohttp.ClientResponse:
+        session = await _get_session()
+        method = partial(getattr(session, http_method), headers=self.auth_header)
+        return await method(url, **kwargs)
+
+    async def get_async(self, url: str, params=None, **kwargs) -> aiohttp.ClientResponse:
+        return await self.http_async(url, 'get', params=params, **kwargs)
+
+    async def post_async(self, url: str, data=None, json=None, **kwargs) -> aiohttp.ClientResponse:
+        return await self.http_async(url, 'post', data=data, json=json, **kwargs)
+
+    async def put_async(self,  url, data=None, **kwargs) -> aiohttp.ClientResponse:
+        return await self.http_async(url, 'put', data=data, **kwargs)
+
+    async def list_devices_async(self) -> List[Dict]:
+        resp = await self.get_async(f"{DEVICE_URL:s}/apiv1/devices.json")
+        print(resp)
+        devices = await resp.json()
+        resp.close()
+        return [d["device"] for d in devices]

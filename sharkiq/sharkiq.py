@@ -1,18 +1,15 @@
 """Shark IQ Wrapper"""
 
 import enum
-from collections import abc
-from typing import Dict, Iterable, List, Optional, Set, Union
-from .ayla_api import AylaApi
-from .const import DEVICE_URL, SHARK_APP_ID, SHARK_APP_SECRET
+from collections import abc, defaultdict
+from typing import Dict, Iterable, List, Optional, Set, Union, TYPE_CHECKING
+from .const import DEVICE_URL
+
+if TYPE_CHECKING:
+    from .ayla_api import AylaApi
 
 PropertyName = Union[str, enum.Enum]
 PropertyValue = Union[str, int, enum.Enum]
-
-
-def get_ayla_api(username, password):
-    """Get an AylaApi object"""
-    return AylaApi(username, password, SHARK_APP_ID, SHARK_APP_SECRET)
 
 
 @enum.unique
@@ -49,12 +46,12 @@ def _clean_property_name(raw_property_name: str) -> str:
 class SharkIqVacuum:
     """Shark IQ vacuum entity"""
 
-    def __init__(self, ayla_api: AylaApi, device_dct: Dict):
+    def __init__(self, ayla_api: "AylaApi", device_dct: Dict):
         self.ayla_api = ayla_api
         self._dsn = device_dct['dsn']
         self._key = device_dct['key']
         self._model_number = device_dct['oem_model']  # type: str
-        self.properties_full = {}
+        self.properties_full = defaultdict(dict)  # Using a defaultdict prevents errors before calling `update()`
         self.property_values = SharkPropertiesView(self)
         self._settable_properties = None  # type: Optional[Set]
 
@@ -93,7 +90,7 @@ class SharkIqVacuum:
 
         end_point = self.get_property_endpoint(f'SET_{property_name}')
         data = {'datapoint': {'value': value}}
-        resp = self.ayla_api.post(end_point, json=data)
+        resp = self.ayla_api.request('post', end_point, json=data)
         self.properties_full[property_name].update(resp.json())
 
     async def set_property_value_async(self, property_name: PropertyName, value: PropertyValue):
@@ -105,7 +102,7 @@ class SharkIqVacuum:
 
         end_point = self.get_property_endpoint(f'SET_{property_name}')
         data = {'datapoint': {'value': value}}
-        resp = await self.ayla_api.post_async(end_point, json=data)
+        resp = await self.ayla_api.async_request('post', end_point, json=data)
         resp_data = await resp.json()
         self.properties_full[property_name].update(resp_data)
         resp.close()
@@ -117,27 +114,31 @@ class SharkIqVacuum:
 
     def update(self, property_list: Optional[Iterable[str]] = None):
         """Update the known device state"""
-        if property_list is not None:
-            params = {'names[]': property_list}
-        else:
+        full_update = property_list is None
+        if full_update:
             params = None
+        else:
+            params = {'names[]': property_list}
 
-        resp = self.ayla_api.get(self.update_url, params)
+        resp = self.ayla_api.request('get', self.update_url, params=params)
         properties = resp.json()
-        self._do_update(property_list, properties)
+        self._do_update(full_update, properties)
 
-    async def update_async(self, property_list: Optional[Iterable[str]] = None):
+    async def async_update(self, property_list: Optional[Iterable[str]] = None):
         """Update the known device state async"""
-        if property_list is not None:
-            params = {'names[]': property_list}
-        else:
+        full_update = property_list is None
+        if full_update:
             params = None
-        resp = await self.ayla_api.get_async(self.update_url, params)
+        else:
+            params = {'names[]': property_list}
+
+        resp = await self.ayla_api.async_request('get', self.update_url, params=params)
         properties = await resp.json()
         resp.close()
-        self._do_update(property_list, properties)
 
-    def _do_update(self, property_list: Optional[Iterable[str]], properties: List[Dict]):
+        self._do_update(full_update, properties)
+
+    def _do_update(self, full_update: bool, properties: List[Dict]):
         """Update the internal state from fetched properties"""
         property_names = {p['property']['name'] for p in properties}
         settable_properties = {_clean_property_name(p) for p in property_names if p[:3].upper() == 'SET'}
@@ -146,47 +147,28 @@ class SharkIqVacuum:
             for p in properties if p['property']['name'].upper() != 'SET'
         }
 
-        if property_list is None or self._settable_properties is None:
+        if full_update or self._settable_properties is None:
             self._settable_properties = settable_properties
         else:
             self._settable_properties = self._settable_properties.union(settable_properties)
 
         # Update the property map so we can update by name instead of by fickle number
-        if property_list is not None:
-            self.properties_full.update(readable_properties)
-        else:
-            self.properties_full = readable_properties
+        if full_update:
+            # Did a full update, so let's wipe everything
+            self.properties_full = defaultdict(dict)
+        self.properties_full.update(readable_properties)
 
-    def start(self):
-        self.set_property_value(Properties.OPERATING_MODE, OperatingModes.START)
+    def set_operating_mode(self, mode: OperatingModes):
+        self.set_property_value(Properties.OPERATING_MODE, mode)
 
-    def stop(self):
-        self.set_property_value(Properties.OPERATING_MODE, OperatingModes.STOP)
-
-    def pause(self):
-        self.set_property_value(Properties.OPERATING_MODE, OperatingModes.STOP)
-
-    def return_to_base(self):
-        self.set_property_value(Properties.OPERATING_MODE, OperatingModes.RETURN)
+    async def async_set_operating_mode(self, mode: OperatingModes):
+        await self.set_property_value_async(Properties.OPERATING_MODE, mode)
 
     def find_device(self):
         self.set_property_value(Properties.FIND_DEVICE, 1)
 
-    async def start_async(self):
-        await self.set_property_value_async(Properties.OPERATING_MODE, OperatingModes.START)
-
-    async def stop_async(self):
-        await self.set_property_value_async(Properties.OPERATING_MODE, OperatingModes.STOP)
-
-    async def pause_async(self):
-        await self.set_property_value_async(Properties.OPERATING_MODE, OperatingModes.STOP)
-
-    async def return_to_base_async(self):
-        await self.set_property_value_async(Properties.OPERATING_MODE, OperatingModes.RETURN)
-
-    async def find_device_async(self):
+    async def async_find_device(self):
         await self.set_property_value_async(Properties.FIND_DEVICE, 1)
-
 
 
 class SharkPropertiesView(abc.Mapping):

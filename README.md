@@ -5,7 +5,7 @@ Python API for Shark IQ robot vacuums
 ### Examples
 ##### Simple Operation
 ```python
-from sharkiq import get_ayla_api, SharkIqVacuum
+from sharkiq import get_ayla_api, OperatingModes
 
 USERNAME = 'me@email.com'
 PASSWORD = '$7r0nkP@s$w0rD'
@@ -13,32 +13,30 @@ PASSWORD = '$7r0nkP@s$w0rD'
 ayla_api = get_ayla_api(USERNAME, PASSWORD)
 ayla_api.auth()
 
-devices = ayla_api.list_devices()
-
-shark_vacs = [SharkIqVacuum(ayla_api, d) for d in devices]
+shark_vacs = ayla_api.get_devices()
 shark = shark_vacs[0]
+
 shark.update()
-shark.start()
+shark.set_operating_mode(OperatingModes.START)
 shark.return_to_base()
 ```
 
 ##### Async operation
 ```python
 import asyncio
-from sharkiq import get_ayla_api, SharkIqVacuum
+from sharkiq import get_ayla_api, OperatingModes, SharkIqVacuum
 
 USERNAME = 'me@email.com'
 PASSWORD = '$7r0nkP@s$w0rD'
 
 async def main(ayla_api) -> SharkIqVacuum:
-    await ayla_api.auth_async()
-    print(ayla_api.auth_header)
-    devices = await ayla_api.list_devices_async()
-    shark_vacs = [SharkIqVacuum(ayla_api, d) for d in devices]
-
+    await ayla_api.async_auth()
+        
+    shark_vacs = await ayla_api.async_get_devices()
     shark = shark_vacs[0]
-    await shark.update_async()
-    await shark.find_device_async()
+    await shark.async_update()
+    await shark.async_find_device()
+    await shark.async_set_operating_mode(OperatingModes.START)
 
     return shark
 

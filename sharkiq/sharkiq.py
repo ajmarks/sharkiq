@@ -3,7 +3,7 @@
 import enum
 import requests
 from collections import abc
-from typing import Dict, Iterable, Optional, Set, Union
+from typing import Dict, Iterable, List, Optional, Set, Union
 from .ayla_api import AylaApi
 from .const import DEVICE_URL, SHARK_APP_ID, SHARK_APP_SECRET
 
@@ -47,22 +47,6 @@ def _clean_property_name(raw_property_name: str) -> str:
         return raw_property_name
 
 
-class PropertiesView(abc.Mapping):
-    """Convenience API for shark iq properties"""
-    def __init__(self, props_dict: Dict):
-        self._props_dict = props_dict
-
-    def __getitem__(self, key):
-        return self._props_dict[key].get('value')
-
-    def __iter__(self):
-        for k in self._props_dict.keys():
-            yield k
-
-    def __len__(self):
-        return self._props_dict.__len__()
-
-
 class SharkIqVacuum:
     """Shark IQ vacuum entity"""
 
@@ -71,8 +55,8 @@ class SharkIqVacuum:
         self._dsn = device_dct['dsn']
         self._key = device_dct['key']
         self._model_number = device_dct['oem_model']  # type: str
-        self._properties_full = {}
-        self.property_values = PropertiesView(self._properties_full)
+        self.properties_full = {}
+        self.property_values = SharkPropertiesView(self)
         self._settable_properties = None  # type: Optional[Set]
 
         # Properties
@@ -102,7 +86,7 @@ class SharkIqVacuum:
         if isinstance(property_name, enum.Enum):
             property_name = property_name.value
 
-        end_point = f'{DEVICE_URL:s}/apiv1/dsns/{self._dsn:s}/properties/{property_name:s}/datapoints'
+        end_point = f'{DEVICE_URL:s}/apiv1/dsns/{self._dsn:s}/properties/{property_name:s}/datapoints.json'
         data = {'datapoint': {'value': value}}
         r = self.sapi.post(end_point, json=data)
         return r
@@ -115,14 +99,14 @@ class SharkIqVacuum:
             value = value.value
 
         resp = self._post_property(f'SET_{property_name:s}', value)
-        self._properties_full[property_name].update(resp.json())
+        self.properties_full[property_name].update(resp.json())
 
     @property
     def update_url(self) -> str:
         """API endpoint to fetch updated device information"""
         return f'{DEVICE_URL}/apiv1/dsns/{self.serial_number}/properties.json'
 
-    def update(self, property_list: Optional[Iterable] = None):
+    def update(self, property_list: Optional[Iterable[str]] = None):
         """Update the known device state"""
         if property_list is not None:
             params = {'names[]': property_list}
@@ -131,6 +115,20 @@ class SharkIqVacuum:
 
         resp = self.sapi.get(self.update_url, params)
         properties = resp.json()
+        self._do_update(property_list, properties)
+
+    async def update_async(self, property_list: Optional[Iterable[str]] = None):
+        if property_list is not None:
+            params = {'names[]': property_list}
+        else:
+            params = None
+        resp = await self.sapi.get_async(self.update_url, params)
+        properties = await resp.json()
+        resp.close()
+        self._do_update(property_list, properties)
+
+    def _do_update(self, property_list: Optional[Iterable[str]], properties: List[Dict]):
+        """Update the internal state from fetched properties"""
         property_names = {p['property']['name'] for p in properties}
         settable_properties = {_clean_property_name(p) for p in property_names if p[:3].upper() == 'SET'}
         readable_properties = {
@@ -141,10 +139,13 @@ class SharkIqVacuum:
         if property_list is None or self._settable_properties is None:
             self._settable_properties = settable_properties
         else:
-            self._settable_properties = self._settable_properties.union()
+            self._settable_properties = self._settable_properties.union(settable_properties)
 
         # Update the property map so we can update by name instead of by fickle number
-        self._properties_full.update(readable_properties)
+        if property_list is not None:
+            self.properties_full.update(readable_properties)
+        else:
+            self.properties_full = readable_properties
 
     def start(self):
         self.set_property_value(Properties.OPERATING_MODE, OperatingModes.START)
@@ -160,3 +161,19 @@ class SharkIqVacuum:
 
     def find_device(self):
         self.set_property_value(Properties.FIND_DEVICE, 1)
+
+
+class SharkPropertiesView(abc.Mapping):
+    """Convenience API for shark iq properties"""
+    def __init__(self, shark: SharkIqVacuum):
+        self._shark = shark
+
+    def __getitem__(self, key):
+        return self._shark.properties_full[key].get('value')
+
+    def __iter__(self):
+        for k in self._shark.properties_full.keys():
+            yield k
+
+    def __len__(self):
+        return self._shark.properties_full.__len__()

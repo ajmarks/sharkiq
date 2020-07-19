@@ -1,5 +1,5 @@
 # pyshark
-Python API for Shark IQ robot
+Python API for Shark IQ robot vacuums
 
 
 ## Usage
@@ -20,3 +20,4 @@ shark = shark_vacs[0]
 shark.start()
 shark.return_to_base()
 ```
+

@@ -106,7 +106,6 @@ class AylaApi:
 
     async def list_devices_async(self) -> List[Dict]:
         resp = await self.get_async(f"{DEVICE_URL:s}/apiv1/devices.json")
-        print(resp)
         devices = await resp.json()
         resp.close()
         return [d["device"] for d in devices]

@@ -2,7 +2,7 @@
 
 import enum
 from collections import abc, defaultdict
-from typing import Dict, Iterable, List, Optional, Set, Union, TYPE_CHECKING
+from typing import Any, Dict, Iterable, List, Optional, Set, Union, TYPE_CHECKING
 from .const import DEVICE_URL
 
 if TYPE_CHECKING:
@@ -30,6 +30,8 @@ class OperatingModes(enum.IntEnum):
 @enum.unique
 class Properties(enum.Enum):
     BATTERY_CAPACITY = 'Battery_Capacity'
+    DOCKED_STATUS = "DockedStatus"
+    ERROR_CODE = "Error_Code"
     FIND_DEVICE = 'Find_Device'
     OPERATING_MODE = 'Operating_Mode'
     POWER_MODE = 'Power_Mode'
@@ -75,7 +77,7 @@ class SharkIqVacuum:
         """Get the API endpoint for a given property"""
         return f'{DEVICE_URL:s}/apiv1/dsns/{self._dsn:s}/properties/{property_name:s}/datapoints.json'
 
-    def get_property_value(self, property_name: PropertyName) -> str:
+    def get_property_value(self, property_name: PropertyName) -> Any:
         """Get the value of a property from the properties dictionary"""
         if isinstance(property_name, enum.Enum):
             property_name = property_name.value

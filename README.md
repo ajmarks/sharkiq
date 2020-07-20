@@ -11,7 +11,7 @@ USERNAME = 'me@email.com'
 PASSWORD = '$7r0nkP@s$w0rD'
 
 ayla_api = get_ayla_api(USERNAME, PASSWORD)
-ayla_api.auth()
+ayla_api.sign_in()
 
 shark_vacs = ayla_api.get_devices()
 shark = shark_vacs[0]
@@ -30,7 +30,7 @@ USERNAME = 'me@email.com'
 PASSWORD = '$7r0nkP@s$w0rD'
 
 async def main(ayla_api) -> SharkIqVacuum:
-    await ayla_api.async_auth()
+    await ayla_api.async_sign_in()
         
     shark_vacs = await ayla_api.async_get_devices()
     shark = shark_vacs[0]

@@ -21,14 +21,6 @@ def get_ayla_api(username: str, password: str, websession: Optional[aiohttp.Clie
     return AylaApi(username, password, SHARK_APP_ID, SHARK_APP_SECRET, websession=websession)
 
 
-async def _get_session():
-    """Get a new ClientSession"""
-    global _session
-    if _session is None:
-        _session = aiohttp.ClientSession()
-    return _session
-
-
 class AylaApi:
     """Simple Ayla Networks API wrapper"""
 
@@ -48,6 +40,12 @@ class AylaApi:
         self._app_id = app_id
         self._app_secret = app_secret
         self._websession = websession
+
+    def ensure_session(self) -> aiohttp.ClientSession:
+        """Ensure that we have an aiohttp ClientSession"""
+        if self._websession is None:
+            self._websession = aiohttp.ClientSession()
+        return self._websession
 
     @property
     def _login_data(self) -> Dict[str, Dict]:
@@ -72,7 +70,7 @@ class AylaApi:
         self._auth_expiration = datetime.now() + timedelta(seconds=login_result["expires_in"])
         self._is_authed = True
 
-    def auth(self):
+    def sign_in(self):
         """Authenticate to Ayla API synchronously"""
         login_data = self._login_data
         resp = requests.post(f"{LOGIN_URL:s}/users/sign_in.json", json=login_data)
@@ -84,17 +82,40 @@ class AylaApi:
         resp = requests.post(f"{LOGIN_URL:s}/users/refresh_token.json", json=refresh_data)
         self._set_credentials(resp.status_code, resp.json())
 
-    async def async_auth(self):
-        session = await _get_session()
+    async def async_sign_in(self):
+        session = self.ensure_session()
         login_data = self._login_data
         async with session.post(f"{LOGIN_URL:s}/users/sign_in.json", json=login_data) as resp:
             self._set_credentials(resp.status, await resp.json())
 
     async def async_refresh_auth(self):
-        session = await _get_session()
+        session = self.ensure_session()
         refresh_data = {"user": {"refresh_token": self._refresh_token}}
         async with session.post(f"{LOGIN_URL:s}/users/refresh_token.json", json=refresh_data) as resp:
             self._set_credentials(resp.status, await resp.json())
+
+    @property
+    def sign_out_data(self) -> Dict:
+        """Payload for the sign_out call"""
+        return {"user": {"access_token": self._access_token}}
+
+    def _clear_auth(self):
+        """Clear authentication state"""
+        self._is_authed = False
+        self._access_token = None
+        self._refresh_token = None
+        self._auth_expiration = None
+
+    def sign_out(self):
+        """Sign out and invalidate the access token"""
+        requests.post(f"{LOGIN_URL:s}/users/sign_out.json", json=self.sign_out_data)
+        self._clear_auth()
+
+    async def async_sign_out(self):
+        """Sign out and invalidate the access token"""
+        session = self.ensure_session()
+        await session.post(f"{LOGIN_URL:s}/users/sign_out.json", json=self.sign_out_data)
+        self._clear_auth()
 
     @property
     def auth_expiration(self) -> Optional[datetime]:
@@ -145,11 +166,7 @@ class AylaApi:
     async def async_request(
             self, http_method: str, url: str,
             headers: Optional[Dict] = None, auto_refresh: bool = True, **kwargs) -> aiohttp.ClientResponse:
-
-        # If we weren't constructed with a session, get one
-        if self._websession is None:
-            self._websession = await _get_session()
-        session = self._websession
+        session = await self.ensure_session()
 
         try:
             self.check_auth()

@@ -110,11 +110,11 @@ class AylaApi:
     def token_expired(self) -> bool:
         if self.auth_expiration is None:
             return True
-        return datetime.now() > self.auth_expiration
+        return datetime.now() > self.auth_expiration + timedelta(seconds=60)  # Prevent timeout immediately following
 
     def check_auth(self, confirm_still_valid=False):
         """Confirm authentication status"""
-        authed = self._access_token is not None and not self._is_authed
+        authed = self._access_token is not None and self._is_authed
         if not authed:
             raise SharkIqNotAuthedError()
         elif confirm_still_valid and not self.token_expired:

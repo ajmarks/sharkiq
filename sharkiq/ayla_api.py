@@ -166,7 +166,7 @@ class AylaApi:
     async def async_request(
             self, http_method: str, url: str,
             headers: Optional[Dict] = None, auto_refresh: bool = True, **kwargs) -> aiohttp.ClientResponse:
-        session = await self.ensure_session()
+        session = self.ensure_session()
 
         try:
             self.check_auth()

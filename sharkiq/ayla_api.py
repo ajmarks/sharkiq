@@ -114,7 +114,8 @@ class AylaApi:
     async def async_sign_out(self):
         """Sign out and invalidate the access token"""
         session = self.ensure_session()
-        await session.post(f"{LOGIN_URL:s}/users/sign_out.json", json=self.sign_out_data)
+        async with session.post(f"{LOGIN_URL:s}/users/sign_out.json", json=self.sign_out_data) as _:
+            pass
         self._clear_auth()
 
     @property
@@ -165,7 +166,7 @@ class AylaApi:
 
     async def async_request(
             self, http_method: str, url: str,
-            headers: Optional[Dict] = None, auto_refresh: bool = True, **kwargs) -> aiohttp.ClientResponse:
+            headers: Optional[Dict] = None, auto_refresh: bool = True, **kwargs):
         session = self.ensure_session()
 
         try:
@@ -180,7 +181,7 @@ class AylaApi:
             headers = self.auth_header
         else:
             headers = {**headers, **self.auth_header}
-        return await session.request(http_method, url, headers=headers, **kwargs)
+        return session.request(http_method, url, headers=headers, **kwargs)
 
     def list_devices(self) -> List[Dict]:
         resp = self.request("get", f"{DEVICE_URL:s}/apiv1/devices.json")
@@ -188,9 +189,8 @@ class AylaApi:
         return [d["device"] for d in devices]
 
     async def list_devices_async(self) -> List[Dict]:
-        resp = await self.async_request("get", f"{DEVICE_URL:s}/apiv1/devices.json")
-        devices = await resp.json()
-        resp.close()
+        async with await self.async_request("get", f"{DEVICE_URL:s}/apiv1/devices.json") as resp:
+            devices = await resp.json()
         return [d["device"] for d in devices]
 
     def get_devices(self, update: bool = True) -> List[SharkIqVacuum]:

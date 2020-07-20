@@ -104,10 +104,9 @@ class SharkIqVacuum:
 
         end_point = self.get_property_endpoint(f'SET_{property_name}')
         data = {'datapoint': {'value': value}}
-        resp = await self.ayla_api.async_request('post', end_point, json=data)
-        resp_data = await resp.json()
+        async with await self.ayla_api.async_request('post', end_point, json=data) as resp:
+            resp_data = await resp.json()
         self.properties_full[property_name].update(resp_data)
-        resp.close()
 
     @property
     def update_url(self) -> str:
@@ -134,9 +133,8 @@ class SharkIqVacuum:
         else:
             params = {'names[]': property_list}
 
-        resp = await self.ayla_api.async_request('get', self.update_url, params=params)
-        properties = await resp.json()
-        resp.close()
+        async with await self.ayla_api.async_request('get', self.update_url, params=params) as resp:
+            properties = await resp.json()
 
         self._do_update(full_update, properties)
 

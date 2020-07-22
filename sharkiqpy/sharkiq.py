@@ -1,6 +1,7 @@
 """Shark IQ Wrapper"""
 
 import enum
+import logging
 from collections import abc, defaultdict
 from pprint import pformat
 from typing import Any, Dict, Iterable, List, Optional, Set, Union, TYPE_CHECKING
@@ -9,6 +10,8 @@ from .exc import SharkIqReadOnlyPropertyError
 
 if TYPE_CHECKING:
     from .ayla_api import AylaApi
+
+_LOGGER = logging.getLogger(__name__)
 
 PropertyName = Union[str, enum.Enum]
 PropertyValue = Union[str, int, enum.Enum]
@@ -36,11 +39,12 @@ class Properties(enum.Enum):
     CLEAN_COMPLETE = "CleanComplete"
     DOCKED_STATUS = "DockedStatus"
     ERROR_CODE = "Error_Code"
-    EVACUATING = "Evacuating"  # Doesn't seem to work
+    EVACUATING = "Evacuating"  # Doesn't really work because update frequency on the dock (default 20s) is too slow
     FIND_DEVICE = "Find_Device"
     NAV_MODULE_FW_VERSION = "Nav_Module_FW_Version"
     OPERATING_MODE = "Operating_Mode"
     POWER_MODE = "Power_Mode"
+    RECHARGE_RESUME = "Recharge_Resume"
     RECHARGING_TO_RESUME = "Recharging_To_Resume"
     ROBOT_FIRMWARE_VERSION = "Robot_Firmware_Version"
     RSSI = "RSSI"
@@ -120,9 +124,11 @@ class SharkIqVacuum:
         return f'{DEVICE_URL:s}/apiv1/dsns/{self._dsn:s}/data.json'
 
     def _update_metadata(self, metadata: List[Dict]):
-        data = metadata.pop()
-        self._vac_model_number = data.get('value', {}).get('vacModelNumber')
-        self._vac_serial_number = data.get('value', {}).get('vacSerialNumber')
+        data = [d for d in metadata if d.get('datum', {}).get('key', '') == 'sharkDeviceMobileData']
+        if data:
+            datum = data.pop()
+            self._vac_model_number = datum.get('value', {}).get('vacModelNumber')
+            self._vac_serial_number = datum.get('value', {}).get('vacSerialNumber')
 
     def get_metadata(self):
         """Fetch device metadata.  Not needed for basic operation."""
@@ -159,7 +165,7 @@ class SharkIqVacuum:
         resp = self.ayla_api.request('post', end_point, json=data)
         self.properties_full[property_name].update(resp.json())
 
-    async def set_property_value_async(self, property_name: PropertyName, value: PropertyValue):
+    async def async_set_property_value(self, property_name: PropertyName, value: PropertyValue):
         """Update a property async"""
         if isinstance(property_name, enum.Enum):
             property_name = property_name.value
@@ -226,7 +232,7 @@ class SharkIqVacuum:
         self.set_property_value(Properties.OPERATING_MODE, mode)
 
     async def async_set_operating_mode(self, mode: OperatingModes):
-        await self.set_property_value_async(Properties.OPERATING_MODE, mode)
+        await self.async_set_property_value(Properties.OPERATING_MODE, mode)
 
     def find_device(self):
         """Make the device emit an annoying chirp so you can find it"""
@@ -234,7 +240,7 @@ class SharkIqVacuum:
 
     async def async_find_device(self):
         """Make the device emit an annoying chirp so you can find it"""
-        await self.set_property_value_async(Properties.FIND_DEVICE, 1)
+        await self.async_set_property_value(Properties.FIND_DEVICE, 1)
 
     @property
     def error_code(self) -> Optional[int]:
@@ -252,11 +258,32 @@ class SharkIqVacuum:
 
 class SharkPropertiesView(abc.Mapping):
     """Convenience API for shark iq properties"""
+
+    @staticmethod
+    def _cast_value(value, value_type):
+        """Cast property value to the appropriate type."""
+        if value is None:
+            return None
+        type_map = {
+            'boolean': bool,
+            'decimal': float,
+            'integer': int,
+            'string': str
+        }
+        return type_map.get(value_type, lambda x: x)(value)
+
     def __init__(self, shark: SharkIqVacuum):
         self._shark = shark
 
     def __getitem__(self, key):
-        return self._shark.properties_full[key].get('value')
+        value = self._shark.properties_full[key].get('value')
+        value_type = self._shark.properties_full[key].get('base_type')
+        try:
+            return self._cast_value(value, value_type)
+        except (TypeError, ValueError) as exc:
+            # If we failed to convert the type, just return the raw value
+            _LOGGER.warning('Error converting property type (value: %r, type: %r)', value, value_type, exc_info=exc)
+            return value
 
     def __iter__(self):
         for k in self._shark.properties_full.keys():

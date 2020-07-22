@@ -10,4 +10,4 @@ from .exc import (
 )
 from .sharkiq import SharkIqVacuum, PowerModes, OperatingModes, Properties
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'

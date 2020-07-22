@@ -8,6 +8,11 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Union, TYPE_CHECKIN
 from .const import DEVICE_URL
 from .exc import SharkIqReadOnlyPropertyError
 
+try:
+    import ujson as json
+except ImportError:
+    import json
+
 if TYPE_CHECKING:
     from .ayla_api import AylaApi
 
@@ -124,11 +129,16 @@ class SharkIqVacuum:
         return f'{DEVICE_URL:s}/apiv1/dsns/{self._dsn:s}/data.json'
 
     def _update_metadata(self, metadata: List[Dict]):
-        data = [d for d in metadata if d.get('datum', {}).get('key', '') == 'sharkDeviceMobileData']
+        data = [d['datum'] for d in metadata if d.get('datum', {}).get('key', '') == 'sharkDeviceMobileData']
         if data:
-            datum = data.pop()
-            self._vac_model_number = datum.get('value', {}).get('vacModelNumber')
-            self._vac_serial_number = datum.get('value', {}).get('vacSerialNumber')
+            datum = data[0]
+            # I do not know why they don't just use multiple keys for this
+            try:
+                values = json.loads(datum.get('value'))
+            except ValueError:
+                values = {}
+            self._vac_model_number = values.get('vacModelNumber')
+            self._vac_serial_number = values.get('vacSerialNumber')
 
     def get_metadata(self):
         """Fetch device metadata.  Not needed for basic operation."""

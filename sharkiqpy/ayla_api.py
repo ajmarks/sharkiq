@@ -1,4 +1,11 @@
-"""Simple implementation of the Ayla networks API"""
+"""
+Simple implementation of the Ayla networks API
+
+Shark IQ robots use the Ayla networks IoT API to communicate with the device.  Documentation can be
+found at:
+ - https://developer.aylanetworks.com/apibrowser/
+ - https://docs.aylanetworks.com/cloud-services/api-browser/
+"""
 
 import aiohttp
 import requests

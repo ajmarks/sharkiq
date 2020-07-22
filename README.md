@@ -1,11 +1,11 @@
-# pyshark
+# sharkiqpy
 Python API for Shark IQ robot vacuums
 
 
 ### Examples
 ##### Simple Operation
 ```python
-from sharkiq import get_ayla_api, OperatingModes
+from sharkiqpy import get_ayla_api, OperatingModes
 
 USERNAME = 'me@email.com'
 PASSWORD = '$7r0nkP@s$w0rD'
@@ -24,7 +24,7 @@ shark.return_to_base()
 ##### Async operation
 ```python
 import asyncio
-from sharkiq import get_ayla_api, OperatingModes, SharkIqVacuum
+from sharkiqpy import get_ayla_api, OperatingModes, SharkIqVacuum
 
 USERNAME = 'me@email.com'
 PASSWORD = '$7r0nkP@s$w0rD'

@@ -9,8 +9,8 @@ README = (HERE / "README.md").read_text()
 
 # This call to setup() does all the work
 setup(
-    name="sharkiq",
-    version="0.3.4",
+    name="sharkiqpy",
+    version="0.1.0",
     description="Python API for Shark IQ robots",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -23,7 +23,7 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
     ],
-    packages=["sharkiq"],
+    packages=["sharkiqpy"],
     include_package_data=False,
     install_requires=["aiohttp", "requests"],
 )

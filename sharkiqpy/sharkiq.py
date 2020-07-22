@@ -104,7 +104,7 @@ class SharkIqVacuum:
 
     @property
     def vac_model_number(self) -> Optional[str]:
-        return self._oem_model_number
+        return self._vac_model_number
 
     @property
     def vac_serial_number(self) -> Optional[str]:

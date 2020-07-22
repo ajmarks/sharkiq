@@ -1,6 +1,3 @@
-# Generic stuff
-* text=auto
-
 # Source files
 # ============
 *.py     text diff=python eol=lf

@@ -56,10 +56,8 @@ shark = asyncio.run(main(ayla_api))
 ### `get_ayla_api(username, password, websession=None)`
 Returns and `AylaApi` object to interact with the Ayla Networks Device API conrolling the Shark IQ robot, with the `app_id` and `app_secret` parameters set for the Shark IQ robot.
 
-### `class AylaAPI`
+### `class AylaAPI(username, password, app_id, app_secret, websession)`
 Class for interacting with the Ayla Networks Device API underlying the Shark IQ controls.
-
-#### Parameters:
  * `username: str`
  * `password: str`
  * `app_id: str` 
@@ -67,9 +65,9 @@ Class for interacting with the Ayla Networks Device API underlying the Shark IQ 
  * `websession: Optional[aiohttp.ClientSession] = None` Optional `aiohttp.ClientSession` to use for async calls.  If
   one is not provided, a new `aiohttp.ClientSession` will be created at the first async call.
 #### Methods
- * `sign_in()`/`async_sign_in()` Authenticate
+ * `get_devices()`/`async_get_devices()` Get a list of `SharkIqVacuum`s for every device found in `list_devices()`
+ * `list_devices()`/`async_list_devices()` Get a list of known device description `dict`s
  * `refesh_auth()`/`async_refesh_auth()` Refresh the authentication token
- * `sign_out()`/`async_sign_out()` Sign out
  * `request(method, url, headers = None, auto_refresh = True, **kwargs)`/`async_request(...)` Submit an HTTP request to
   the Ayla networks API with the auth header
    * `method: str` An HTTP method, usually `'get'` or `'post'`
@@ -79,18 +77,25 @@ Class for interacting with the Ayla Networks Device API underlying the Shark IQ 
    * `auto_refresh: bool = True` If `True`, automatically call `refesh_auth()`/`async_refesh_auth()` if the auth token
    is near expiration
    * `**kwargs` Passed on to `requests.request` or `aiohttp.ClientSession.request`
-  * `list_devices()`/`async_list_devices()` Get a list of known device description `dict`s
-  * `get_devices()`/`async_get_devices()` Get a list of `SharkIqVacuum`s for every device found in `list_devices()`
+ * `sign_in()`/`async_sign_in()` Authenticate
+ * `sign_out()`/`async_sign_out()` Sign out
 
 
-### `class SharkIqRobot`
+### `class SharkIqRobot(ayla_api, device_dct)`
 Primary API for interacting with Shark IQ vacuums
-
-#### Parameters
  * `ayla_api: AylaApi` An `AylaApi` with an authenticated connection
  * `device_dct: Dict` A `dict` describing the device, usually obtained from `AylaApi.list_devices()`
 
 #### Methods
+ * `find_device()`/`async_find_device()` Cause the device to emit an annoying chirp 
+ * `get_file_property_url(property_name)`/`async_get_file_property_url(property_name)` Get the URL for the latest version of a `'file'`-type property
+   * `property_name: Union[str, PropertyName]` Either a `str` or `PropertyNames` value for the desired property
+ * `get_file_property(property_name)`/`async_get_file_property(property_name)` Get the contents of the latest version of a `'file'`-type property
+   * `property_name: Union[str, PropertyName]` Either a `str` or `PropertyNames` value for the desired property
+ * `get_metadata()`/`async_get_metadata()` Update some device metadata (`vac_model_number` and `vac_serial_number`)
+ * `set_operating_mode(mode)`/`async_set_operating_mode(mode)` Set the operating mode.  This is just a thin wrapper 
+ around `set_property_value`/`async_set_property_value` provided for convenience.
+   * mode: OperatingModes Mode to set, e.g., `OperatingModes.START` to start the vacuum
  * `get_property_value(property_name)/async_get_property_value(property_name)`
    Returns the value of `property_name`, cast to the appropriate type
    * `property_name: Union[str, PropertyName]` Either a `str` or `PropertyNames` value for the desired property
@@ -101,37 +106,27 @@ Primary API for interacting with Shark IQ vacuums
  * `update()`/`async_update(property_list=None)` Fetch the updated robot state from the remote api
    * `property_list: Optional[Interable[str]]` An optional iterable of property names.  If specified, only those 
    properties will be updated.
- * `set_operating_mode(mode)`/`async_set_operating_mode(mode)` Set the operating mode.  This is just a thin wrapper 
- around `set_property_value`/`async_set_property_value` provided for convenience.
-   * mode: OperatingModes Mode to set, e.g., `OperatingModes.START` to start the vacuum
- * `find_device()`/`async_find_device()` Cause the device to emit an annoying chirp 
- * `get_metadata()`/`async_get_metadata()` Update some device metadata (`vac_model_number` and `vac_serial_number`)
- * `get_file_property_url`/`async_get_file_property_url` Get the URL for the latest version of a `'file'`-type property
- * `get_file_property`/`async_get_file_property` Get the contents of the latest version of a `'file'`-type property
  
 #### Properties
  * `ayla_api` The underlying `AylaApi` object
- * `properties_full` A dictionary representing all known device properties and their metadata (type 
- `Dict[str, Dict]`)
- * `property_values` A convenience accessor into `properties_full` mapping property names to values
- * `oem_model_number` A "rough" model number that does not distinguish, for example, between robots with and without
- a self-emptying base
- * `vac_model_number` The precise model number
- * `vac_serial_number` The serial number printed on the device
- * `name` The device name as it appears in the SharkClean app
- * `serial_number` The unique device serial number used with the Ayla Networks API (NB: this name may change)
  * `error_code` Error code, if any.  *NB: these can be very stale as they are not immediately reset in the API when the 
  error is cleared*.
  * `error_text` English description of the `error_code`.  The same caveat applies.
+ * `name` The device name as it appears in the SharkClean app
+ * `oem_model_number` A "rough" model number that does not distinguish, for example, between robots with and without
+ a self-emptying base
+ * `properties_full` A dictionary representing all known device properties and their metadata (type 
+ `Dict[str, Dict]`)
+ * `property_values` A convenience accessor into `properties_full` mapping property names to values
+ * `serial_number` The unique device serial number used with the Ayla Networks API (NB: this name may change)
+ * `vac_model_number` The precise model number
+ * `vac_serial_number` The serial number printed on the device
 
 
 ### Enums
- * `Properties` Properties to use with `get_property_value`/`set_property_value`
  * `OperatingModes` Operation modes to control the vacuum (`START`, `STOP`, `PAUSE`, `RETURN`)
  * `PowerModes` Vacuum power mode (`ECO`, `NORMAL`, `MAX`)
-
- 
-
+ * `Properties` Properties to use with `get_property_value`/`set_property_value`
 
 ## License
 [MIT](https://choosealicense.com/licenses/mit/)

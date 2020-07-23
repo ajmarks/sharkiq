@@ -2,7 +2,9 @@
 
 import enum
 import logging
+import requests
 from collections import abc, defaultdict
+from datetime import datetime
 from pprint import pformat
 from typing import Any, Dict, Iterable, List, Optional, Set, Union, TYPE_CHECKING
 from .const import DEVICE_URL
@@ -14,16 +16,24 @@ except ImportError:
     import json
 
 if TYPE_CHECKING:
+    import aiohttp
     from .ayla_api import AylaApi
 
+TIMESTAMP_FMT = '%Y-%m-%dT%H:%M:%SZ'
 _LOGGER = logging.getLogger(__name__)
 
 PropertyName = Union[str, enum.Enum]
 PropertyValue = Union[str, int, enum.Enum]
 
 
+def _parse_datetime(date_string: str) -> datetime:
+    """Parse a datetime as returned by the Ayla Networks API"""
+    return datetime.strptime(date_string, TIMESTAMP_FMT)
+
+
 @enum.unique
 class PowerModes(enum.IntEnum):
+    """Vacuum power modes"""
     ECO = 0
     NORMAL = 1
     MAX = 2
@@ -31,6 +41,7 @@ class PowerModes(enum.IntEnum):
 
 @enum.unique
 class OperatingModes(enum.IntEnum):
+    """Vacuum operation modes"""
     STOP = 0
     PAUSE = 1
     START = 2
@@ -39,9 +50,11 @@ class OperatingModes(enum.IntEnum):
 
 @enum.unique
 class Properties(enum.Enum):
+    """Useful properties"""
     BATTERY_CAPACITY = "Battery_Capacity"
     CHARGING_STATUS = "Charging_Status"
     CLEAN_COMPLETE = "CleanComplete"
+    CLEANING_STATISTICS = "Cleaning_Statistics"
     DOCKED_STATUS = "DockedStatus"
     ERROR_CODE = "Error_Code"
     EVACUATING = "Evacuating"  # Doesn't really work because update frequency on the dock (default 20s) is too slow
@@ -56,24 +69,21 @@ class Properties(enum.Enum):
 
 
 ERROR_CODES = {
-
-    6: "Bumper stuck",
-    7: "Sensor blocked",
-    11: "Cleaning interrupted",
-
-    # Tentative
-    2: "Obstruction under robot",
-    3: "Suction motor error",
-    # 7: "Too close to a cliff",
-    9: "Check dustbin",
-    10: "Surface not level",
-    14: "Boundary error",
-    16: "Robot stuck",
-    21: "Initialization error",
-    23: "Cannot find dock",
-    24: "Battery Low",
-    26: "Dustbin full",
-    27: "Surface not level",
+    1: "Side wheel is stuck",
+    2: "Side brush is stuck",
+    3: "Suction motor failed",
+    4: "Brushroll stuck",
+    5: "Side wheel is stuck (2)",
+    6: "Bumper is stuck",
+    7: "Cliff sensor is blocked",
+    8: "Battery power is low",
+    9: "No Dustbin",
+    10: "Fall sensor is blocked",
+    11: "Front wheel is stuck",
+    13: "Switched off",
+    14: "Magnetic strip error",
+    16: "Top bumper is stuck",
+    18: "Wheel encoder error",
 }
 
 
@@ -265,6 +275,65 @@ class SharkIqVacuum:
             return ERROR_CODES.get(err, f'Unknown error ({err})')
         return None
 
+    @staticmethod
+    def _get_most_recent_datum(data_list: List[Dict], date_field: str = 'updated_at') -> Dict:
+        """Get the most recent data point from a list of annoyingly nested values"""
+        datapoints = {
+            _parse_datetime(d['datapoint'][date_field]): d['datapoint'] for d in data_list if 'datapoint' in d
+        }
+        if not datapoints:
+            return {}
+        latest_datum = datapoints[max(datapoints.keys())]
+        return latest_datum
+
+    def _get_file_property_endpoint(self, property_name: PropertyName) -> str:
+        """Check that property_name is a file property and return its lookup endpoint"""
+        if isinstance(property_name, enum.Enum):
+            property_name = property_name.value
+
+        property_id = self.properties_full[property_name]['key']
+        if self.properties_full[property_name].get('base_type') != 'file':
+            raise ValueError(f'{property_name} is not a file property')
+        return f'{DEVICE_URL:s}/apiv1/properties/{property_id:d}/datapoints.json'
+
+    def get_file_property_url(self, property_name: PropertyName) -> Optional[str]:
+        """File properties are versioned and need a special lookup"""
+        try:
+            url = self._get_file_property_endpoint(property_name)
+        except KeyError:
+            return None
+
+        resp = self.ayla_api.request('get', url)
+        data_list = resp.json()
+        latest_datum = self._get_most_recent_datum(data_list)
+        return latest_datum.get('file')
+
+    async def async_get_file_property_url(self, property_name: PropertyName) -> Optional[str]:
+        """File properties are versioned and need a special lookup"""
+        try:
+            url = self._get_file_property_endpoint(property_name)
+        except KeyError:
+            return None
+
+        async with await self.ayla_api.async_request('get', url) as resp:
+            data_list = await resp.json()
+        latest_datum = self._get_most_recent_datum(data_list)
+        return latest_datum.get('file')
+
+    def get_file_property(self, property_name: PropertyName) -> bytes:
+        """Get the latest file for a file property and return as bytes"""
+        # These do not require authentication, so we won't use the ayla_api
+        url = self.get_file_property_url(property_name)
+        resp = requests.get(url)
+        return resp.content
+
+    async def async_get_file_property(self, property_name: PropertyName) -> bytes:
+        """Get the latest file for a file property and return as bytes"""
+        url = await self.async_get_file_property_url(property_name)
+        session = self.ayla_api.websession
+        async with session.get(url) as resp:
+            return await resp.read()
+
 
 class SharkPropertiesView(abc.Mapping):
     """Convenience API for shark iq properties"""
@@ -278,7 +347,7 @@ class SharkPropertiesView(abc.Mapping):
             'boolean': bool,
             'decimal': float,
             'integer': int,
-            'string': str
+            'string': str,
         }
         return type_map.get(value_type, lambda x: x)(value)
 

@@ -46,13 +46,13 @@ class AylaApi:
         self._is_authed = False  # type: bool
         self._app_id = app_id
         self._app_secret = app_secret
-        self._websession = websession
+        self.websession = websession
 
     def ensure_session(self) -> aiohttp.ClientSession:
         """Ensure that we have an aiohttp ClientSession"""
-        if self._websession is None:
-            self._websession = aiohttp.ClientSession()
-        return self._websession
+        if self.websession is None:
+            self.websession = aiohttp.ClientSession()
+        return self.websession
 
     @property
     def _login_data(self) -> Dict[str, Dict]:

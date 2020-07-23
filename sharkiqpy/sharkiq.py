@@ -249,9 +249,11 @@ class SharkIqVacuum:
         self.properties_full.update(readable_properties)
 
     def set_operating_mode(self, mode: OperatingModes):
+        """Set the operating mode.  This is just a convenience wrapper around `set_property_value`"""
         self.set_property_value(Properties.OPERATING_MODE, mode)
 
     async def async_set_operating_mode(self, mode: OperatingModes):
+        """Set the operating mode.  This is just a convenience wrapper around `set_property_value`"""
         await self.async_set_property_value(Properties.OPERATING_MODE, mode)
 
     def find_device(self):

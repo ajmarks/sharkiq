@@ -1,5 +1,5 @@
 # sharkiqpy
-Unofficialy SDK for Shark IQ robot vacuums, designed primarily to support an integration for [Home Assistant](https://www.home-assistant.io/).
+Unofficial SDK for Shark IQ robot vacuums, designed primarily to support an integration for [Home Assistant](https://www.home-assistant.io/).
 
 ## Installation
 
@@ -128,5 +128,11 @@ Primary API for interacting with Shark IQ vacuums
  * `PowerModes` Vacuum power mode (`ECO`, `NORMAL`, `MAX`)
  * `Properties` Properties to use with `get_property_value`/`set_property_value`
 
+
+### TODOs:
+ * Add support for mapping and room selection
+ * Once we have mapping, it may be possible to use the RSSI property combined with an increased update frequency
+ to generate a wifi strength heatmap.  Kind of orthogonal to the main purpose, but I really want to do this.
+ 
 ## License
 [MIT](https://choosealicense.com/licenses/mit/)

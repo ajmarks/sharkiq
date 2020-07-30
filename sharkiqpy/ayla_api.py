@@ -192,7 +192,7 @@ class AylaApi:
         devices = resp.json()
         return [d["device"] for d in devices]
 
-    async def list_devices_async(self) -> List[Dict]:
+    async def async_list_devices(self) -> List[Dict]:
         async with await self.async_request("get", f"{DEVICE_URL:s}/apiv1/devices.json") as resp:
             devices = await resp.json()
         return [d["device"] for d in devices]
@@ -206,7 +206,7 @@ class AylaApi:
         return devices
 
     async def async_get_devices(self, update: bool = True) -> List[SharkIqVacuum]:
-        devices = [SharkIqVacuum(self, d) for d in await self.list_devices_async()]
+        devices = [SharkIqVacuum(self, d) for d in await self.async_list_devices()]
         if update:
             for device in devices:
                 await device.async_get_metadata()

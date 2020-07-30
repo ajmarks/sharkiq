@@ -16,7 +16,7 @@ class SharkIqAuthError(SharkIqError):
         super().__init__(msg, *args)
 
 
-class SharkIqAuthExpiredError(SharkIqError):
+class SharkIqAuthExpiringError(SharkIqError):
     """Authentication expired and needs to be refreshed"""
     def __init__(self, msg=AUTH_EXPIRED_MESSAGE, *args):
         super().__init__(msg, *args)

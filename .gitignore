@@ -133,4 +133,5 @@ dmypy.json
 .vscode/
 
 # Secrets
-/sharkiq/secrets.py
+secrets.py
+driver.py

@@ -16,7 +16,6 @@ except ImportError:
     import json
 
 if TYPE_CHECKING:
-    import aiohttp
     from .ayla_api import AylaApi
 
 TIMESTAMP_FMT = '%Y-%m-%dT%H:%M:%SZ'

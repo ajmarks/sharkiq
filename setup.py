@@ -10,7 +10,7 @@ README = (HERE / "README.md").read_text()
 # This call to setup() does all the work
 setup(
     name="sharkiqpy",
-    version="0.1.3",
+    version="0.1.4",
     description="Python API for Shark IQ robots",
     long_description=README,
     long_description_content_type="text/markdown",

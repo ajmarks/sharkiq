@@ -3,11 +3,11 @@
 from .ayla_api import get_ayla_api, AylaApi
 from .exc import (
     SharkIqError,
-    SharkIqAuthExpiredError,
+    SharkIqAuthExpiringError,
     SharkIqNotAuthedError,
     SharkIqAuthError,
     SharkIqReadOnlyPropertyError,
 )
 from .sharkiq import SharkIqVacuum, PowerModes, OperatingModes, Properties
 
-__version__ = '0.1.3'
+__version__ = '0.1.4'

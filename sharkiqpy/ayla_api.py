@@ -17,7 +17,7 @@ from .const import (
     SHARK_APP_ID,
     SHARK_APP_SECRET,
 )
-from .exc import SharkIqAuthError, SharkIqAuthExpiredError, SharkIqNotAuthedError
+from .exc import SharkIqAuthError, SharkIqAuthExpiringError, SharkIqNotAuthedError
 from .sharkiq import SharkIqVacuum
 
 _session = None
@@ -66,7 +66,7 @@ class AylaApi:
         }
 
     def _set_credentials(self, status_code: int, login_result: Dict):
-        """Update the internal credentials store"""
+        """Update the internal credentials store."""
         if status_code == 404:
             raise SharkIqAuthError(login_result["error"] + " (Confirm app_id and app_secret are correct)")
         elif status_code == 401:
@@ -78,7 +78,7 @@ class AylaApi:
         self._is_authed = True
 
     def sign_in(self):
-        """Authenticate to Ayla API synchronously"""
+        """Authenticate to Ayla API synchronously."""
         login_data = self._login_data
         resp = requests.post(f"{LOGIN_URL:s}/users/sign_in.json", json=login_data)
         self._set_credentials(resp.status_code, resp.json())
@@ -90,12 +90,14 @@ class AylaApi:
         self._set_credentials(resp.status_code, resp.json())
 
     async def async_sign_in(self):
+        """Authenticate to Ayla API synchronously."""
         session = self.ensure_session()
         login_data = self._login_data
         async with session.post(f"{LOGIN_URL:s}/users/sign_in.json", json=login_data) as resp:
             self._set_credentials(resp.status, await resp.json())
 
     async def async_refresh_auth(self):
+        """Refresh the authentication synchronously."""
         session = self.ensure_session()
         refresh_data = {"user": {"refresh_token": self._refresh_token}}
         async with session.post(f"{LOGIN_URL:s}/users/refresh_token.json", json=refresh_data) as resp:
@@ -137,57 +139,52 @@ class AylaApi:
 
     @property
     def token_expired(self) -> bool:
+        """Return true if the token has already expired"""
         if self.auth_expiration is None:
             return True
-        return datetime.now() > self.auth_expiration + timedelta(seconds=60)  # Prevent timeout immediately following
+        return datetime.now() > self.auth_expiration
 
-    def check_auth(self, confirm_still_valid=False):
+    @property
+    def token_expiring_soon(self) -> bool:
+        """Return true if the token will expire soon"""
+        if self.auth_expiration is None:
+            return True
+        return datetime.now() > self.auth_expiration + timedelta(seconds=600)  # Prevent timeout immediately following
+
+    def check_auth(self, raise_expiring_soon=True):
         """Confirm authentication status"""
-        authed = self._access_token is not None and self._is_authed
-        if not authed:
+        if not self._access_token or not self._is_authed or self.token_expired:
+            self._is_authed = False
             raise SharkIqNotAuthedError()
-        elif confirm_still_valid and not self.token_expired:
-            raise SharkIqAuthExpiredError()
+        elif raise_expiring_soon and self.token_expiring_soon:
+            raise SharkIqAuthExpiringError()
 
     @property
     def auth_header(self) -> Dict[str, str]:
         self.check_auth()
         return {"Authorization": f"auth_token {self._access_token:s}"}
 
-    def request(
-            self, method: str, url: str,
-            headers: Optional[Dict] = None, auto_refresh: bool = True, **kwargs) -> requests.Response:
+    def _get_headers(self, fn_kwargs) -> Dict[str, str]:
+        """
+        Extract the headers element from fn_kwargs, removing it if it exists
+        and updating with self.auth_header.
+        """
         try:
-            self.check_auth()
-        except SharkIqAuthExpiredError:
-            if auto_refresh:
-                self.refresh_auth()
-            else:
-                raise
-
-        if headers is None:
-            headers = self.auth_header
+            headers = fn_kwargs['headers']
+        except KeyError:
+            headers = {}
         else:
-            headers = {**headers, **self.auth_header}
+            del fn_kwargs['headers']
+        headers.update(self.auth_header)
+        return headers
+
+    def request(self, method: str, url: str, **kwargs) -> requests.Response:
+        headers = self._get_headers(kwargs)
         return requests.request(method, url, headers=headers, **kwargs)
 
-    async def async_request(
-            self, http_method: str, url: str,
-            headers: Optional[Dict] = None, auto_refresh: bool = True, **kwargs):
+    async def async_request(self, http_method: str, url: str, **kwargs):
         session = self.ensure_session()
-
-        try:
-            self.check_auth()
-        except SharkIqAuthExpiredError:
-            if auto_refresh:
-                await self.async_refresh_auth()
-            else:
-                raise
-
-        if headers is None:
-            headers = self.auth_header
-        else:
-            headers = {**headers, **self.auth_header}
+        headers = self._get_headers(kwargs)
         return session.request(http_method, url, headers=headers, **kwargs)
 
     def list_devices(self) -> List[Dict]:

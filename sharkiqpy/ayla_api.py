@@ -149,7 +149,7 @@ class AylaApi:
         """Return true if the token will expire soon"""
         if self.auth_expiration is None:
             return True
-        return datetime.now() > self.auth_expiration + timedelta(seconds=600)  # Prevent timeout immediately following
+        return datetime.now() > self.auth_expiration - timedelta(seconds=600)  # Prevent timeout immediately following
 
     def check_auth(self, raise_expiring_soon=True):
         """Confirm authentication status"""

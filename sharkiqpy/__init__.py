@@ -8,6 +8,6 @@ from .exc import (
     SharkIqAuthError,
     SharkIqReadOnlyPropertyError,
 )
-from .sharkiq import SharkIqVacuum, PowerModes, OperatingModes, Properties
+from .sharkiq import OperatingModes, PowerModes,  Properties, SharkIqVacuum
 
-__version__ = '0.1.5'
+__version__ = '0.1.6'

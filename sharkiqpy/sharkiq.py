@@ -58,6 +58,7 @@ class Properties(enum.Enum):
     ERROR_CODE = "Error_Code"
     EVACUATING = "Evacuating"  # Doesn't really work because update frequency on the dock (default 20s) is too slow
     FIND_DEVICE = "Find_Device"
+    LOW_LIGHT_MISSION = "LowLightMission"
     NAV_MODULE_FW_VERSION = "Nav_Module_FW_Version"
     OPERATING_MODE = "Operating_Mode"
     POWER_MODE = "Power_Mode"
@@ -67,7 +68,7 @@ class Properties(enum.Enum):
     RSSI = "RSSI"
 
 
-ERROR_CODES = {
+ERROR_MESSAGES = {
     1: "Side wheel is stuck",
     2: "Side brush is stuck",
     3: "Suction motor failed",
@@ -273,7 +274,7 @@ class SharkIqVacuum:
         """Error message"""
         err = self.error_code
         if err:
-            return ERROR_CODES.get(err, f'Unknown error ({err})')
+            return ERROR_MESSAGES.get(err, f'Unknown error ({err})')
         return None
 
     @staticmethod

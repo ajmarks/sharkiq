@@ -33,8 +33,8 @@ def _parse_datetime(date_string: str) -> datetime:
 @enum.unique
 class PowerModes(enum.IntEnum):
     """Vacuum power modes"""
-    ECO = 0
-    NORMAL = 1
+    ECO = 1
+    NORMAL = 0
     MAX = 2
 
 

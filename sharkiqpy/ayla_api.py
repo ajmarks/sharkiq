@@ -68,9 +68,9 @@ class AylaApi:
     def _set_credentials(self, status_code: int, login_result: Dict):
         """Update the internal credentials store."""
         if status_code == 404:
-            raise SharkIqAuthError(login_result["error"] + " (Confirm app_id and app_secret are correct)")
+            raise SharkIqAuthError(login_result["error"]["message"] + " (Confirm app_id and app_secret are correct)")
         elif status_code == 401:
-            raise SharkIqAuthError(login_result["error"])
+            raise SharkIqAuthError(login_result["error"]["message"])
 
         self._access_token = login_result["access_token"]
         self._refresh_token = login_result["refresh_token"]
@@ -190,11 +190,15 @@ class AylaApi:
     def list_devices(self) -> List[Dict]:
         resp = self.request("get", f"{DEVICE_URL:s}/apiv1/devices.json")
         devices = resp.json()
+        if resp.status_code == 401:
+            raise SharkIqAuthError(devices["error"]["message"])
         return [d["device"] for d in devices]
 
     async def async_list_devices(self) -> List[Dict]:
         async with await self.async_request("get", f"{DEVICE_URL:s}/apiv1/devices.json") as resp:
             devices = await resp.json()
+            if resp.status == 401:
+                raise SharkIqAuthError(devices["error"]["message"])
         return [d["device"] for d in devices]
 
     def get_devices(self, update: bool = True) -> List[SharkIqVacuum]:

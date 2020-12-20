@@ -1,5 +1,6 @@
 """Shark IQ Wrapper"""
 
+import base64
 import enum
 import logging
 import requests
@@ -335,6 +336,20 @@ class SharkIqVacuum:
         session = self.ayla_api.websession
         async with session.get(url) as resp:
             return await resp.read()
+
+    def _encode_room_list(self, rooms: List[str]):
+        """Base64 encode the list of rooms to clean"""
+        if not rooms:
+            raise ValueError('Room list must not be empty')
+        if len(rooms) > 3:
+            raise ValueError('At most three rooms may be given')
+        # These are a mystery to me, but they seem constant
+        header = b'\x80\x01\x0b\xca\x02'
+        footer = b'\x1a\x08155B43C4'
+
+    def clean_rooms(self, rooms: List[str]) -> None:
+        payload = self._encode_room_list(rooms)
+        raise NotImplementedError
 
 
 class SharkPropertiesView(abc.Mapping):
